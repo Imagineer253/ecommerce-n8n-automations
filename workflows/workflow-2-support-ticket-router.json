@@ -1,0 +1,652 @@
+{
+  "name": "Workflow 2 — Customer Support Ticket Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "support-ticket",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-002",
+      "name": "Webhook — Receive Support Ticket",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "notes": "Receives support tickets from your helpdesk, website chat, or email parser. Test payload in sample-data/support-ticket-payload.json"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "customerEmail",
+              "value": "={{ $json.body.customerEmail }}",
+              "type": "string"
+            },
+            {
+              "id": "b2",
+              "name": "customerMessage",
+              "value": "={{ $json.body.customerMessage }}",
+              "type": "string"
+            },
+            {
+              "id": "b3",
+              "name": "orderId",
+              "value": "={{ $json.body.orderId }}",
+              "type": "string"
+            },
+            {
+              "id": "b4",
+              "name": "ticketId",
+              "value": "={{ $json.body.ticketId || 'TKT-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "b5",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-002",
+      "name": "Extract Ticket Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a customer support classifier for an e-commerce store. Analyze the customer message and respond ONLY with a JSON object in this exact format:\n{\n  \"category\": \"<one of: refund_request | shipping_issue | product_question | complaint | other>\",\n  \"sentiment\": \"<one of: positive | neutral | negative | very_negative>\",\n  \"urgency\": \"<one of: low | medium | high | critical>\",\n  \"summary\": \"<one sentence summary of the issue>\",\n  \"suggestedResponse\": \"<a professional 2-3 sentence auto-response appropriate for this category>\"\n}\nDo not include any text outside the JSON object."
+            },
+            {
+              "role": "user",
+              "content": "Customer message: {{ $json.customerMessage }}\nOrder ID: {{ $json.orderId }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "ai-002",
+      "name": "AI — Analyze & Categorize Ticket",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [720, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "cred-openai",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "SETUP: Add OpenAI API key in n8n credentials. Can swap for Claude: use @n8n/n8n-nodes-langchain.lmChatAnthropic node instead. Temperature 0.2 = more consistent, deterministic classification."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "aiAnalysis",
+              "value": "={{ JSON.parse($json.message.content) }}",
+              "type": "object"
+            },
+            {
+              "id": "c2",
+              "name": "category",
+              "value": "={{ JSON.parse($json.message.content).category }}",
+              "type": "string"
+            },
+            {
+              "id": "c3",
+              "name": "sentiment",
+              "value": "={{ JSON.parse($json.message.content).sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "c4",
+              "name": "urgency",
+              "value": "={{ JSON.parse($json.message.content).urgency }}",
+              "type": "string"
+            },
+            {
+              "id": "c5",
+              "name": "summary",
+              "value": "={{ JSON.parse($json.message.content).summary }}",
+              "type": "string"
+            },
+            {
+              "id": "c6",
+              "name": "suggestedResponse",
+              "value": "={{ JSON.parse($json.message.content).suggestedResponse }}",
+              "type": "string"
+            },
+            {
+              "id": "c7",
+              "name": "customerEmail",
+              "value": "={{ $('Extract Ticket Data').item.json.customerEmail }}",
+              "type": "string"
+            },
+            {
+              "id": "c8",
+              "name": "customerMessage",
+              "value": "={{ $('Extract Ticket Data').item.json.customerMessage }}",
+              "type": "string"
+            },
+            {
+              "id": "c9",
+              "name": "orderId",
+              "value": "={{ $('Extract Ticket Data').item.json.orderId }}",
+              "type": "string"
+            },
+            {
+              "id": "c10",
+              "name": "ticketId",
+              "value": "={{ $('Extract Ticket Data').item.json.ticketId }}",
+              "type": "string"
+            },
+            {
+              "id": "c11",
+              "name": "receivedAt",
+              "value": "={{ $('Extract Ticket Data').item.json.receivedAt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-003",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [960, 300],
+      "notes": "Parse the AI JSON response and merge it with the original ticket data. Using $('Extract Ticket Data').item.json to reference data from an earlier node — this is called 'referencing upstream nodes'."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "complaint",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Complaint"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "refund_request",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Refund Request"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "shipping_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Shipping Issue"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "product_question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Product Question"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "switch-002",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1200, 300],
+      "notes": "The Switch node is n8n's router. Each rule creates an output branch. The 'fallback' output catches anything that doesn't match (the 'other' category)."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "",
+        "options": {
+          "embeds": {
+            "embed": [
+              {
+                "title": "URGENT COMPLAINT — Immediate Attention Required",
+                "description": "{{ $json.summary }}",
+                "color": 16711680,
+                "fields": {
+                  "field": [
+                    {
+                      "name": "Ticket ID",
+                      "value": "{{ $json.ticketId }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Customer",
+                      "value": "{{ $json.customerEmail }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Urgency",
+                      "value": "{{ $json.urgency }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Sentiment",
+                      "value": "{{ $json.sentiment }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Original Message",
+                      "value": "{{ $json.customerMessage }}",
+                      "short": false
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "discord-complaint",
+      "name": "Flag Complaint — Alert Team",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1440, 120],
+      "notes": "Complaints get a red-colored Discord embed and @here mention to ensure immediate visibility. Color 16711680 = red in decimal."
+    },
+    {
+      "parameters": {
+        "fromEmail": "support@yourstore.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Re: Your Refund Request (Ticket #{{ $json.ticketId }})",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2>Regarding Your Refund Request</h2>\n  <p>Dear Customer,</p>\n  <p>{{ $json.suggestedResponse }}</p>\n  <h3>Our Refund Policy:</h3>\n  <ul>\n    <li>Refunds are processed within 3-5 business days</li>\n    <li>Items must be returned within 30 days of purchase</li>\n    <li>Original packaging required for electronics</li>\n    <li>Refunds are issued to the original payment method</li>\n  </ul>\n  <p>To initiate your refund, please reply to this email with your order number (<strong>{{ $json.orderId }}</strong>) and reason for return.</p>\n  <p>Ticket ID: <strong>{{ $json.ticketId }}</strong></p>\n  <p>Best regards,<br>Customer Support Team</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-refund",
+      "name": "Auto-Response — Refund Policy",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 240],
+      "credentials": {
+        "smtp": {
+          "id": "cred-smtp",
+          "name": "SMTP Account"
+        }
+      },
+      "notes": "Refund requests get an immediate auto-response with refund policy info, reducing repetitive support work by 40-60% for standard refund queries."
+    },
+    {
+      "parameters": {
+        "fromEmail": "support@yourstore.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Re: Shipping Issue — Order #{{ $json.orderId }} (Ticket #{{ $json.ticketId }})",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2>Shipping Update for Order #{{ $json.orderId }}</h2>\n  <p>Dear Customer,</p>\n  <p>{{ $json.suggestedResponse }}</p>\n  <p>We have flagged your order for priority review. A team member will follow up within 24 hours with a tracking update or resolution.</p>\n  <p>Ticket ID: <strong>{{ $json.ticketId }}</strong></p>\n  <p>Best regards,<br>Customer Support Team</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-shipping",
+      "name": "Auto-Response — Shipping Issue",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 360],
+      "credentials": {
+        "smtp": {
+          "id": "cred-smtp",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "support@yourstore.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Re: Your Question (Ticket #{{ $json.ticketId }})",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <h2>Thanks for Your Question!</h2>\n  <p>Dear Customer,</p>\n  <p>{{ $json.suggestedResponse }}</p>\n  <p>If you need more information, feel free to reply to this email.</p>\n  <p>Ticket ID: <strong>{{ $json.ticketId }}</strong></p>\n  <p>Best regards,<br>Customer Support Team</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-question",
+      "name": "Auto-Response — Product Question",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 480],
+      "credentials": {
+        "smtp": {
+          "id": "cred-smtp",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "__rl": true,
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Support Tickets",
+          "__rl": true,
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticketId": "={{ $json.ticketId }}",
+            "receivedAt": "={{ $json.receivedAt }}",
+            "customerEmail": "={{ $json.customerEmail }}",
+            "orderId": "={{ $json.orderId }}",
+            "category": "={{ $json.category }}",
+            "sentiment": "={{ $json.sentiment }}",
+            "urgency": "={{ $json.urgency }}",
+            "summary": "={{ $json.summary }}",
+            "originalMessage": "={{ $json.customerMessage }}",
+            "status": "Auto-Processed"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "gsheet-002",
+      "name": "Log Ticket to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 540],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cred-gsheets",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Log EVERY ticket regardless of category. This runs in parallel with the switch routing. Sheet columns: ticketId, receivedAt, customerEmail, orderId, category, sentiment, urgency, summary, originalMessage, status"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, ticketId: $('Parse AI Response').item.json.ticketId, category: $('Parse AI Response').item.json.category, urgency: $('Parse AI Response').item.json.urgency }) }}",
+        "options": {}
+      },
+      "id": "respond-002",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1680, 300]
+    },
+    {
+      "parameters": {},
+      "id": "err-002",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "WORKFLOW ERROR in Support Ticket Router!\nError: {{ $json.error.message }}\nNode: {{ $json.execution.lastNodeExecuted }}\nTime: {{ $now.toISO() }}",
+        "options": {}
+      },
+      "id": "err-notify-002",
+      "name": "Alert Team on Error",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [480, 540]
+    }
+  ],
+  "connections": {
+    "Webhook — Receive Support Ticket": {
+      "main": [
+        [
+          {
+            "node": "Extract Ticket Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Ticket Data": {
+      "main": [
+        [
+          {
+            "node": "AI — Analyze & Categorize Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — Analyze & Categorize Ticket": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Route by Category",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Ticket to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [
+          {
+            "node": "Flag Complaint — Alert Team",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auto-Response — Refund Policy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auto-Response — Shipping Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auto-Response — Product Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Complaint — Alert Team": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Response — Refund Policy": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Response — Shipping Issue": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Response — Product Question": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Alert Team on Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["ecommerce", "support", "ai", "routing"],
+  "_buildNotes": {
+    "businessPurpose": "Uses AI to read every incoming support ticket, classify the intent and emotional tone, then automatically routes it to the right response template — resolving 60-80% of tickets instantly without human intervention, while escalating true complaints for immediate human attention.",
+    "nodesUsed": ["Webhook", "Set (x2)", "OpenAI", "Switch", "emailSend (x3)", "Discord", "Google Sheets", "Error Trigger"],
+    "keyLearnings": [
+      "AI nodes return a string — you must use JSON.parse() in the next Set node to turn it into a usable object",
+      "Switch node routes to different outputs based on field values — each rule creates a named output port",
+      "The fallbackOutput: extra setting catches anything that doesn't match any rule",
+      "You can reference data from non-adjacent upstream nodes using $('Node Name').item.json — very useful after branching",
+      "Temperature 0.2 on AI = more consistent classification, less creative — right choice for classification tasks",
+      "Running Log to Sheets in parallel with the Switch means ALL tickets are logged even if routing fails"
+    ],
+    "credentialsNeeded": ["OpenAI API key", "SMTP", "Google Sheets OAuth2", "Discord Webhook"],
+    "testPayloads": [
+      {
+        "scenario": "Refund request",
+        "customerEmail": "angry@example.com",
+        "customerMessage": "I want a refund immediately! This product broke after one day and I am extremely disappointed.",
+        "orderId": "ORD-2024-0291",
+        "ticketId": "TKT-001"
+      },
+      {
+        "scenario": "Shipping issue",
+        "customerEmail": "waiting@example.com",
+        "customerMessage": "My order was supposed to arrive 5 days ago and tracking hasn't updated. Where is my package?",
+        "orderId": "ORD-2024-0445",
+        "ticketId": "TKT-002"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+productName,sku,currentStock,reorderThreshold,supplier,category
+Wireless Headphones Pro,WHP-001,8,10,AudioTech Suppliers,Electronics
+USB-C Charging Cable 2m,UCC-2M,45,20,CableWorld Inc,Accessories
+Laptop Stand Adjustable,LSA-003,3,5,ErgoDesk Co,Office
+Bluetooth Speaker Mini,BSM-007,12,15,AudioTech Suppliers,Electronics
+Phone Case iPhone 15,PCI-15,2,10,CaseKing Ltd,Accessories
+Mechanical Keyboard TKL,MKT-002,18,10,KeyMaster Pro,Electronics
+Mouse Pad XL,MPX-004,7,8,DeskGear Co,Office
+Webcam 1080p HD,WCM-008,4,5,CamTech Ltd,Electronics
+HDMI Cable 3m,HDM-3M,60,25,CableWorld Inc,Accessories
+Desk Organizer Premium,DOP-006,1,5,ErgoDesk Co,Office
+Wireless Mouse Ergonomic,WME-011,22,10,KeyMaster Pro,Electronics
+Monitor Light Bar,MLB-005,9,10,LightTech Co,Office
+Screen Cleaning Kit,SCK-009,3,15,CleanTech Ltd,Accessories
+Power Bank 20000mAh,PBK-010,6,8,PowerUp Inc,Electronics
+Cable Management Box,CMB-012,14,10,DeskGear Co,Office

@@ -1,0 +1,41 @@
+{
+  "_comment": "Test these different scenarios by sending each as a POST to your webhook URL",
+  "scenarios": [
+    {
+      "name": "Angry Complaint",
+      "payload": {
+        "customerEmail": "frustrated.customer@example.com",
+        "customerMessage": "This is absolutely unacceptable! I ordered a product two weeks ago and it arrived completely broken. Your customer service has been ignoring my emails for 5 days. I want this resolved immediately or I'm filing a chargeback!",
+        "orderId": "ORD-2024-0291",
+        "ticketId": "TKT-001"
+      }
+    },
+    {
+      "name": "Refund Request",
+      "payload": {
+        "customerEmail": "mary.smith@example.com",
+        "customerMessage": "Hi, I need to return this item and get a refund. It doesn't fit my needs as described. Order number ORD-2024-0445. How do I process a refund?",
+        "orderId": "ORD-2024-0445",
+        "ticketId": "TKT-002"
+      }
+    },
+    {
+      "name": "Shipping Issue",
+      "payload": {
+        "customerEmail": "waiting.customer@example.com",
+        "customerMessage": "My tracking number shows 'in transit' but it's been 7 days with no update. The estimated delivery was 3 days ago. Can you help me find out where my package is?",
+        "orderId": "ORD-2024-0612",
+        "ticketId": "TKT-003"
+      }
+    },
+    {
+      "name": "Product Question",
+      "payload": {
+        "customerEmail": "curious.buyer@example.com",
+        "customerMessage": "Before I buy, I wanted to ask — does the wireless headphones model WHP-001 work with both iOS and Android? And what's the battery life like?",
+        "orderId": null,
+        "ticketId": "TKT-004"
+      }
+    }
+  ]
+}

@@ -1,0 +1,338 @@
+{
+  "name": "Workflow 3 — Inventory Low Stock Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "cron-003",
+      "name": "Schedule — Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "Runs every hour automatically. You can also set this to every 15 minutes, daily at 8am, etc. The Schedule Trigger replaces the old Cron node in newer n8n versions."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "__rl": true,
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Inventory",
+          "__rl": true,
+          "mode": "name"
+        },
+        "options": {
+          "headerRow": 1,
+          "returnAllMatches": true
+        }
+      },
+      "id": "gsheet-003-read",
+      "name": "Read Inventory Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cred-gsheets",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads all rows from the Inventory sheet. Each row becomes a separate item in n8n. Sheet columns: productName, sku, currentStock, reorderThreshold, supplier, category. See sample-data/inventory-sheet.csv"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-stock",
+              "leftValue": "={{ $json.currentStock }}",
+              "rightValue": "={{ $json.reorderThreshold }}",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-003",
+      "name": "Filter — Below Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 300],
+      "notes": "The IF node splits flow: TRUE output = low stock items, FALSE output = items that are fine. We only care about TRUE. The IF node processes EACH item individually — n8n automatically loops through all rows."
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemFields",
+        "options": {}
+      },
+      "id": "agg-003",
+      "name": "Aggregate — Collect All Low Stock Items",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [960, 180],
+      "notes": "The Aggregate node collects all individual low-stock items into a single array. This is crucial — without it, you'd send one email per item instead of one summary email. This is a very common pattern."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-empty",
+              "leftValue": "={{ $json.productName.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-003b",
+      "name": "Check — Any Low Stock?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 180],
+      "notes": "Only send alerts if there are actually low-stock items. This prevents empty alert emails being sent every hour when everything is fine."
+    },
+    {
+      "parameters": {
+        "fromEmail": "inventory@yourstore.com",
+        "toEmail": "ops-team@yourstore.com",
+        "subject": "LOW STOCK ALERT — {{ $json.productName.length }} Product(s) Need Reordering ({{ $now.format('MMM DD, YYYY HH:mm') }})",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<head><meta charset='UTF-8'></head>\n<body style='font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px;'>\n  <div style='background: #DC2626; padding: 20px 30px; border-radius: 8px 8px 0 0;'>\n    <h1 style='color: white; margin: 0; font-size: 22px;'>LOW STOCK ALERT</h1>\n    <p style='color: #FEE2E2; margin: 5px 0 0;'>{{ $json.productName.length }} product(s) require immediate reordering</p>\n  </div>\n  <div style='background: #FFF; padding: 30px; border: 1px solid #E5E7EB; border-top: none; border-radius: 0 0 8px 8px;'>\n    <p>The following products have fallen below their reorder threshold as of <strong>{{ $now.format('MMMM DD, YYYY [at] HH:mm') }}</strong>:</p>\n    <table style='width: 100%; border-collapse: collapse; margin: 20px 0;'>\n      <thead>\n        <tr style='background: #F9FAFB;'>\n          <th style='padding: 12px; text-align: left; border: 1px solid #E5E7EB;'>Product</th>\n          <th style='padding: 12px; text-align: left; border: 1px solid #E5E7EB;'>SKU</th>\n          <th style='padding: 12px; text-align: center; border: 1px solid #E5E7EB;'>Current Stock</th>\n          <th style='padding: 12px; text-align: center; border: 1px solid #E5E7EB;'>Threshold</th>\n          <th style='padding: 12px; text-align: left; border: 1px solid #E5E7EB;'>Supplier</th>\n        </tr>\n      </thead>\n      <tbody>\n        {{ $json.productName.map((name, i) => `\n        <tr style=\"background: ${i % 2 === 0 ? '#FFF' : '#FFF8F8'}\">\n          <td style=\"padding: 10px 12px; border: 1px solid #E5E7EB; font-weight: bold;\">${name}</td>\n          <td style=\"padding: 10px 12px; border: 1px solid #E5E7EB; font-family: monospace;\">${$json.sku[i]}</td>\n          <td style=\"padding: 10px 12px; border: 1px solid #E5E7EB; text-align: center; color: #DC2626; font-weight: bold;\">${$json.currentStock[i]}</td>\n          <td style=\"padding: 10px 12px; border: 1px solid #E5E7EB; text-align: center;\">${$json.reorderThreshold[i]}</td>\n          <td style=\"padding: 10px 12px; border: 1px solid #E5E7EB;\">${$json.supplier[i]}</td>\n        </tr>`).join('') }}\n      </tbody>\n    </table>\n    <div style='background: #FEF2F2; padding: 15px; border-radius: 6px; border-left: 4px solid #DC2626;'>\n      <p style='margin: 0; color: #991B1B;'><strong>Action Required:</strong> Please initiate purchase orders with the respective suppliers immediately to avoid stockouts.</p>\n    </div>\n    <p style='color: #6B7280; font-size: 12px; margin-top: 20px;'>This alert is generated automatically every hour by the Inventory Monitoring workflow.</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-003",
+      "name": "Send Low Stock Email Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1440, 120],
+      "credentials": {
+        "smtp": {
+          "id": "cred-smtp",
+          "name": "SMTP Account"
+        }
+      },
+      "notes": "The aggregated data comes in as arrays (productName[], sku[], currentStock[]) — we use .map() in the template to build the HTML table rows dynamically. This is advanced but powerful."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "",
+        "options": {
+          "embeds": {
+            "embed": [
+              {
+                "title": "INVENTORY ALERT — {{ $json.productName.length }} Low Stock Item(s)",
+                "description": "The following products are below reorder threshold and need restocking:",
+                "color": 16711680,
+                "fields": {
+                  "field": "={{ $json.productName.map((name, i) => ({ name: name, value: `Stock: **${$json.currentStock[i]}** / Threshold: ${$json.reorderThreshold[i]} | SKU: ${$json.sku[i]}`, short: false })) }}"
+                },
+                "footer": {
+                  "text": "Check your email for the full report with supplier details"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "discord-003",
+      "name": "Send Slack/Discord Summary",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1440, 240],
+      "notes": "Discord summary provides instant visibility. The detailed email has the full table with supplier info for action."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "__rl": true,
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Alert Log",
+          "__rl": true,
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "alertTime": "={{ $now.toISO() }}",
+            "itemsAffected": "={{ $json.productName.length }}",
+            "productNames": "={{ $json.productName.join(', ') }}",
+            "alertType": "Low Stock"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "gsheet-003-log",
+      "name": "Log Alert to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1440, 360],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cred-gsheets",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "err-003",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "WORKFLOW ERROR in Inventory Alert!\nError: {{ $json.error.message }}\nTime: {{ $now.toISO() }}",
+        "options": {}
+      },
+      "id": "err-notify-003",
+      "name": "Alert Team on Error",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [480, 540]
+    }
+  ],
+  "connections": {
+    "Schedule — Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Read Inventory Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Inventory Sheet": {
+      "main": [
+        [
+          {
+            "node": "Filter — Below Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter — Below Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Aggregate — Collect All Low Stock Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Aggregate — Collect All Low Stock Items": {
+      "main": [
+        [
+          {
+            "node": "Check — Any Low Stock?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check — Any Low Stock?": {
+      "main": [
+        [
+          {
+            "node": "Send Low Stock Email Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Slack/Discord Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Alert to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Alert Team on Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["ecommerce", "inventory", "alerts", "scheduled"],
+  "_buildNotes": {
+    "businessPurpose": "Runs silently every hour, automatically scanning your inventory sheet and sending instant email + Discord alerts the moment any product drops below its reorder threshold — eliminating manual stock checks and preventing costly stockouts before they happen.",
+    "nodesUsed": ["Schedule Trigger", "Google Sheets (read)", "IF", "Aggregate", "IF (check empty)", "emailSend", "Discord", "Google Sheets (append)", "Error Trigger"],
+    "keyLearnings": [
+      "Schedule Trigger replaces the old Cron node — set interval in hours, minutes, or a specific time of day",
+      "Google Sheets READ returns one item per row — n8n processes them all in a loop automatically",
+      "IF node filters: TRUE output = matches condition, FALSE = does not. Connect only the TRUE output to continue",
+      "Aggregate node is critical for summary workflows — collapses N items into 1 item with array fields",
+      "After Aggregate, fields become arrays: $json.productName is ['Widget A', 'Widget B'] — use .map() or .join() in templates",
+      "Double IF pattern: first IF filters low stock, second IF checks the array isn't empty before sending alerts",
+      ".map() in n8n expressions lets you build dynamic HTML table rows or Discord fields from arrays"
+    ],
+    "googleSheetColumns": {
+      "Inventory": ["productName", "sku", "currentStock", "reorderThreshold", "supplier", "category"],
+      "Alert Log": ["alertTime", "itemsAffected", "productNames", "alertType"]
+    },
+    "credentialsNeeded": ["Google Sheets OAuth2", "SMTP", "Discord Webhook"]
+  }
+}

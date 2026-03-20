@@ -1,0 +1,321 @@
+{
+  "name": "Workflow 1 — Customer Order Notification System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-001",
+      "name": "Webhook — Receive New Order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "notes": "Entry point. Listens for POST requests at /webhook/new-order. Test with the sample payload in sample-data/order-payload.json"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "customerName",
+              "value": "={{ $json.body.customerName }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "customerEmail",
+              "value": "={{ $json.body.customerEmail }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "orderId",
+              "value": "={{ $json.body.orderId }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "orderTotal",
+              "value": "={{ $json.body.orderTotal }}",
+              "type": "number"
+            },
+            {
+              "id": "a5",
+              "name": "items",
+              "value": "={{ $json.body.items }}",
+              "type": "array"
+            },
+            {
+              "id": "a6",
+              "name": "orderDate",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-001",
+      "name": "Extract & Normalize Order Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300],
+      "notes": "Pull fields out of the webhook body and normalize them. Always normalize data right after receiving it so downstream nodes see clean, consistent fields."
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@yourstore.com",
+        "toEmail": "={{ $json.customerEmail }}",
+        "subject": "Order Confirmation #{{ $json.orderId }} — Thank you, {{ $json.customerName }}!",
+        "emailType": "html",
+        "message": "<!DOCTYPE html>\n<html>\n<head><meta charset='UTF-8'></head>\n<body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>\n  <div style='background: #4F46E5; padding: 30px; border-radius: 8px 8px 0 0;'>\n    <h1 style='color: white; margin: 0;'>Order Confirmed!</h1>\n  </div>\n  <div style='background: #F9FAFB; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #E5E7EB;'>\n    <p style='font-size: 16px;'>Hi <strong>{{ $json.customerName }}</strong>,</p>\n    <p>Thank you for your order! We've received it and it's being processed.</p>\n    <div style='background: white; padding: 20px; border-radius: 8px; border: 1px solid #E5E7EB; margin: 20px 0;'>\n      <h3 style='margin: 0 0 15px;'>Order Summary</h3>\n      <p><strong>Order ID:</strong> #{{ $json.orderId }}</p>\n      <p><strong>Order Date:</strong> {{ $json.orderDate }}</p>\n      <p><strong>Total:</strong> ${{ $json.orderTotal }}</p>\n    </div>\n    <p>We'll send you another email when your order ships.</p>\n    <p style='color: #6B7280; font-size: 14px;'>Questions? Reply to this email or visit our help center.</p>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "email-001",
+      "name": "Send Customer Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [720, 180],
+      "credentials": {
+        "smtp": {
+          "id": "cred-smtp",
+          "name": "SMTP Account"
+        }
+      },
+      "notes": "SETUP: In n8n credentials, add an SMTP credential. For testing use Mailtrap (free). For production use Gmail OAuth2 or SendGrid SMTP."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "",
+        "options": {
+          "embeds": {
+            "embed": [
+              {
+                "title": "New Order Received — #{{ $json.orderId }}",
+                "description": "A new order has been placed and confirmation email sent.",
+                "color": 5814783,
+                "fields": {
+                  "field": [
+                    {
+                      "name": "Customer",
+                      "value": "{{ $json.customerName }} ({{ $json.customerEmail }})",
+                      "short": false
+                    },
+                    {
+                      "name": "Order Total",
+                      "value": "${{ $json.orderTotal }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Order Date",
+                      "value": "{{ $json.orderDate }}",
+                      "short": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "discord-001",
+      "name": "Notify Fulfillment Team — Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "notes": "SETUP: Create a Discord webhook in your server: Server Settings > Integrations > Webhooks. Paste the URL above. Can swap for Slack node with same structure."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "__rl": true,
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Orders",
+          "__rl": true,
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "orderId": "={{ $json.orderId }}",
+            "customerName": "={{ $json.customerName }}",
+            "customerEmail": "={{ $json.customerEmail }}",
+            "orderTotal": "={{ $json.orderTotal }}",
+            "orderDate": "={{ $json.orderDate }}",
+            "status": "Received"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "gsheet-001",
+      "name": "Log Order to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cred-gsheets",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "SETUP: Create a Google Sheet with columns: orderId, customerName, customerEmail, orderTotal, orderDate, status. Share it with your Google service account email. Paste the Sheet ID from the URL."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Order processed', orderId: $('Extract & Normalize Order Data').item.json.orderId }) }}",
+        "options": {}
+      },
+      "id": "respond-001",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 300],
+      "notes": "Always send a response back to the webhook caller so the e-commerce platform knows the notification was received."
+    },
+    {
+      "parameters": {},
+      "id": "err-001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 540],
+      "notes": "This node activates if any node in THIS workflow throws an error. Connect it to an alert action."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "WORKFLOW ERROR in Order Notification System!\n\nError: {{ $json.error.message }}\nWorkflow: {{ $json.workflow.name }}\nNode: {{ $json.execution.lastNodeExecuted }}\nTime: {{ $now.toISO() }}\n\nPlease check n8n for full details.",
+        "options": {}
+      },
+      "id": "err-notify-001",
+      "name": "Alert Team on Error",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [480, 540],
+      "notes": "Send error alerts to a dedicated #errors channel in Discord so nothing silently fails."
+    }
+  ],
+  "connections": {
+    "Webhook — Receive New Order": {
+      "main": [
+        [
+          {
+            "node": "Extract & Normalize Order Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Normalize Order Data": {
+      "main": [
+        [
+          {
+            "node": "Send Customer Confirmation Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Fulfillment Team — Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Order to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Customer Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Fulfillment Team — Discord": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Order to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Alert Team on Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": ""
+  },
+  "versionId": "wf1-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": ["ecommerce", "orders", "notifications"],
+  "_buildNotes": {
+    "businessPurpose": "Automates the entire post-order communication chain: customer gets confirmation, fulfillment team gets alerted in real time, and every order is logged to a central sheet — eliminating manual copy-paste work and reducing response time from minutes to seconds.",
+    "nodesUsed": ["Webhook", "Set", "emailSend", "Discord", "Google Sheets", "Respond to Webhook", "Error Trigger"],
+    "keyLearnings": [
+      "The Set node is used to normalize/extract webhook body fields — always do this right after the trigger so every downstream node sees clean data",
+      "Parallel branching: one Set node connects to 3 nodes simultaneously — n8n runs them in parallel",
+      "Error Trigger is a separate trigger (not connected to the main flow) — it fires automatically when any node throws an uncaught error",
+      "responseMode: responseNode means the Webhook node waits for the Respond to Webhook node before returning HTTP response",
+      "Google Sheets append operation adds a new row — no need for complex formulas",
+      "Discord embeds make notifications much more readable than plain text"
+    ],
+    "credentialsNeeded": ["SMTP (Mailtrap for testing, Gmail for production)", "Google Sheets OAuth2", "Discord Webhook URL"],
+    "testPayload": {
+      "customerName": "Sarah Johnson",
+      "customerEmail": "sarah@example.com",
+      "orderId": "ORD-2024-1847",
+      "orderTotal": 127.50,
+      "items": [
+        {"name": "Wireless Headphones", "qty": 1, "price": 89.99},
+        {"name": "Phone Case", "qty": 2, "price": 18.75}
+      ]
+    }
+  }
+}

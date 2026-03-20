@@ -1,0 +1,580 @@
+{
+  "name": "Workflow 4 — AI-Powered Review Analyzer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-review",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-004",
+      "name": "Webhook — Receive Product Review",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "notes": "Receives reviews from your e-commerce platform, app, or email collection form. In production, connect this to Shopify's webhook, WooCommerce hook, or Trustpilot API."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d1",
+              "name": "reviewId",
+              "value": "={{ $json.body.reviewId || 'REV-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "d2",
+              "name": "reviewText",
+              "value": "={{ $json.body.reviewText }}",
+              "type": "string"
+            },
+            {
+              "id": "d3",
+              "name": "starRating",
+              "value": "={{ $json.body.starRating }}",
+              "type": "number"
+            },
+            {
+              "id": "d4",
+              "name": "productName",
+              "value": "={{ $json.body.productName }}",
+              "type": "string"
+            },
+            {
+              "id": "d5",
+              "name": "customerName",
+              "value": "={{ $json.body.customerName || 'Anonymous' }}",
+              "type": "string"
+            },
+            {
+              "id": "d6",
+              "name": "receivedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "d7",
+              "name": "weekNumber",
+              "value": "={{ $now.format('YYYY-[W]WW') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-004",
+      "name": "Extract Review Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a product review analyst for an e-commerce company. Analyze the review and respond ONLY with a JSON object in this exact format:\n{\n  \"overallSentiment\": \"<one of: very_positive | positive | neutral | negative | very_negative>\",\n  \"themes\": {\n    \"quality\": \"<positive | neutral | negative | not_mentioned>\",\n    \"shipping\": \"<positive | neutral | negative | not_mentioned>\",\n    \"value\": \"<positive | neutral | negative | not_mentioned>\",\n    \"customerService\": \"<positive | neutral | negative | not_mentioned>\",\n    \"packaging\": \"<positive | neutral | negative | not_mentioned>\"\n  },\n  \"keyPhrases\": [\"<up to 5 key phrases from the review>\"],\n  \"mainComplaint\": \"<single sentence describing main issue, or null if no complaint>\",\n  \"mainPraise\": \"<single sentence describing main praise, or null if no praise>\",\n  \"requiresResponse\": <true if review needs human follow-up, false if not>,\n  \"actionableInsight\": \"<one sentence of actionable insight for the product team>\"\n}\nDo not include any text outside the JSON object."
+            },
+            {
+              "role": "user",
+              "content": "Product: {{ $json.productName }}\nStar Rating: {{ $json.starRating }}/5\nReview: {{ $json.reviewText }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "ai-004",
+      "name": "AI — Analyze Review Sentiment & Themes",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [720, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "cred-openai",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "gpt-4o-mini is cost-effective for high-volume review analysis (~$0.0002 per review). Use gpt-4o for more nuanced analysis on premium plans. The structured JSON prompt ensures consistent, parseable output."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "reviewId",
+              "value": "={{ $('Extract Review Data').item.json.reviewId }}",
+              "type": "string"
+            },
+            {
+              "id": "e2",
+              "name": "reviewText",
+              "value": "={{ $('Extract Review Data').item.json.reviewText }}",
+              "type": "string"
+            },
+            {
+              "id": "e3",
+              "name": "starRating",
+              "value": "={{ $('Extract Review Data').item.json.starRating }}",
+              "type": "number"
+            },
+            {
+              "id": "e4",
+              "name": "productName",
+              "value": "={{ $('Extract Review Data').item.json.productName }}",
+              "type": "string"
+            },
+            {
+              "id": "e5",
+              "name": "customerName",
+              "value": "={{ $('Extract Review Data').item.json.customerName }}",
+              "type": "string"
+            },
+            {
+              "id": "e6",
+              "name": "receivedAt",
+              "value": "={{ $('Extract Review Data').item.json.receivedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "e7",
+              "name": "weekNumber",
+              "value": "={{ $('Extract Review Data').item.json.weekNumber }}",
+              "type": "string"
+            },
+            {
+              "id": "e8",
+              "name": "overallSentiment",
+              "value": "={{ JSON.parse($json.message.content).overallSentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "e9",
+              "name": "themeQuality",
+              "value": "={{ JSON.parse($json.message.content).themes.quality }}",
+              "type": "string"
+            },
+            {
+              "id": "e10",
+              "name": "themeShipping",
+              "value": "={{ JSON.parse($json.message.content).themes.shipping }}",
+              "type": "string"
+            },
+            {
+              "id": "e11",
+              "name": "themeValue",
+              "value": "={{ JSON.parse($json.message.content).themes.value }}",
+              "type": "string"
+            },
+            {
+              "id": "e12",
+              "name": "themeCustomerService",
+              "value": "={{ JSON.parse($json.message.content).themes.customerService }}",
+              "type": "string"
+            },
+            {
+              "id": "e13",
+              "name": "keyPhrases",
+              "value": "={{ JSON.parse($json.message.content).keyPhrases.join(', ') }}",
+              "type": "string"
+            },
+            {
+              "id": "e14",
+              "name": "mainComplaint",
+              "value": "={{ JSON.parse($json.message.content).mainComplaint }}",
+              "type": "string"
+            },
+            {
+              "id": "e15",
+              "name": "mainPraise",
+              "value": "={{ JSON.parse($json.message.content).mainPraise }}",
+              "type": "string"
+            },
+            {
+              "id": "e16",
+              "name": "requiresResponse",
+              "value": "={{ JSON.parse($json.message.content).requiresResponse }}",
+              "type": "boolean"
+            },
+            {
+              "id": "e17",
+              "name": "actionableInsight",
+              "value": "={{ JSON.parse($json.message.content).actionableInsight }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-005",
+      "name": "Merge Review + AI Analysis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [960, 300],
+      "notes": "Merge all fields into one clean object: original review data (referenced from earlier node) + parsed AI analysis. This is the 'assembled' data item that all downstream nodes will use."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "__rl": true,
+          "mode": "id"
+        },
+        "sheetName": {
+          "value": "Reviews",
+          "__rl": true,
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "reviewId": "={{ $json.reviewId }}",
+            "receivedAt": "={{ $json.receivedAt }}",
+            "weekNumber": "={{ $json.weekNumber }}",
+            "productName": "={{ $json.productName }}",
+            "customerName": "={{ $json.customerName }}",
+            "starRating": "={{ $json.starRating }}",
+            "overallSentiment": "={{ $json.overallSentiment }}",
+            "themeQuality": "={{ $json.themeQuality }}",
+            "themeShipping": "={{ $json.themeShipping }}",
+            "themeValue": "={{ $json.themeValue }}",
+            "themeCustomerService": "={{ $json.themeCustomerService }}",
+            "keyPhrases": "={{ $json.keyPhrases }}",
+            "mainComplaint": "={{ $json.mainComplaint }}",
+            "mainPraise": "={{ $json.mainPraise }}",
+            "requiresResponse": "={{ $json.requiresResponse }}",
+            "actionableInsight": "={{ $json.actionableInsight }}",
+            "reviewText": "={{ $json.reviewText }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "gsheet-004",
+      "name": "Store Analysis in Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 480],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cred-gsheets",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Every review gets stored with full AI analysis. Over time this sheet becomes a powerful dataset — you can build pivot tables for weekly trend summaries."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-stars",
+              "leftValue": "={{ $json.starRating }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-004",
+      "name": "Check — Negative Review (< 3 stars)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 300],
+      "notes": "Flag reviews below 3 stars for immediate team attention. 3-star reviews are borderline — adjust threshold to 4 if your brand aims for high NPS."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "",
+        "options": {
+          "embeds": {
+            "embed": [
+              {
+                "title": "NEGATIVE REVIEW ALERT — {{ $json.starRating }}/5 Stars",
+                "description": "**Product:** {{ $json.productName }}\n**Sentiment:** {{ $json.overallSentiment }}\n**Requires Response:** {{ $json.requiresResponse ? 'YES' : 'No' }}",
+                "color": 16711680,
+                "fields": {
+                  "field": [
+                    {
+                      "name": "Review",
+                      "value": "{{ $json.reviewText.substring(0, 500) }}{{ $json.reviewText.length > 500 ? '...' : '' }}",
+                      "short": false
+                    },
+                    {
+                      "name": "Main Complaint",
+                      "value": "={{ $json.mainComplaint || 'None identified' }}",
+                      "short": false
+                    },
+                    {
+                      "name": "Themes",
+                      "value": "Quality: {{ $json.themeQuality }} | Shipping: {{ $json.themeShipping }} | Value: {{ $json.themeValue }}",
+                      "short": false
+                    },
+                    {
+                      "name": "Actionable Insight",
+                      "value": "={{ $json.actionableInsight }}",
+                      "short": false
+                    },
+                    {
+                      "name": "Review ID",
+                      "value": "={{ $json.reviewId }}",
+                      "short": true
+                    },
+                    {
+                      "name": "Customer",
+                      "value": "={{ $json.customerName }}",
+                      "short": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "discord-004-neg",
+      "name": "Alert Team — Negative Review",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1440, 180],
+      "notes": "Red embed with full context so the team can respond within minutes instead of days. The actionableInsight field gives product managers immediate value."
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "",
+        "options": {
+          "embeds": {
+            "embed": [
+              {
+                "title": "New Review — {{ $json.starRating }}/5 Stars",
+                "description": "**Product:** {{ $json.productName }}\n**Sentiment:** {{ $json.overallSentiment }}",
+                "color": 5763719,
+                "fields": {
+                  "field": [
+                    {
+                      "name": "Main Praise",
+                      "value": "={{ $json.mainPraise || 'See full review' }}",
+                      "short": false
+                    },
+                    {
+                      "name": "Key Phrases",
+                      "value": "={{ $json.keyPhrases }}",
+                      "short": false
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "id": "discord-004-pos",
+      "name": "Log Positive Review",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1440, 420],
+      "notes": "Positive reviews (3+ stars) get a green embed. Color 5763719 = green. These can be shared in a #wins channel to boost team morale."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, reviewId: $('Merge Review + AI Analysis').item.json.reviewId, sentiment: $('Merge Review + AI Analysis').item.json.overallSentiment, flagged: $('Merge Review + AI Analysis').item.json.starRating < 3 }) }}",
+        "options": {}
+      },
+      "id": "respond-004",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1680, 300]
+    },
+    {
+      "parameters": {},
+      "id": "err-004",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 540]
+    },
+    {
+      "parameters": {
+        "webhookUri": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "text": "WORKFLOW ERROR in Review Analyzer!\nError: {{ $json.error.message }}\nNode: {{ $json.execution.lastNodeExecuted }}\nTime: {{ $now.toISO() }}",
+        "options": {}
+      },
+      "id": "err-notify-004",
+      "name": "Alert Team on Error",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [480, 540]
+    }
+  ],
+  "connections": {
+    "Webhook — Receive Product Review": {
+      "main": [
+        [
+          {
+            "node": "Extract Review Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Review Data": {
+      "main": [
+        [
+          {
+            "node": "AI — Analyze Review Sentiment & Themes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI — Analyze Review Sentiment & Themes": {
+      "main": [
+        [
+          {
+            "node": "Merge Review + AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Review + AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Check — Negative Review (< 3 stars)?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Analysis in Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check — Negative Review (< 3 stars)?": {
+      "main": [
+        [
+          {
+            "node": "Alert Team — Negative Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Positive Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Team — Negative Review": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Positive Review": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Alert Team on Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["ecommerce", "reviews", "ai", "sentiment"],
+  "_buildNotes": {
+    "businessPurpose": "Automatically reads every product review through an AI lens to extract sentiment, themes, and actionable insights — flagging negative reviews within seconds for rapid response, while building a structured dataset that reveals product quality trends over time without manual analysis.",
+    "nodesUsed": ["Webhook", "Set (x2)", "OpenAI", "Set (merge)", "IF", "Discord (x2)", "Google Sheets", "Error Trigger"],
+    "keyLearnings": [
+      "Structured JSON prompts to AI are the most reliable — always ask the AI to respond ONLY with JSON",
+      "weekNumber field ($now.format('YYYY-[W]WW')) lets you group reviews by week in Google Sheets for trend analysis",
+      "The 'Merge Review + AI Analysis' Set node is a common pattern — combine data from two different workflow stages into one clean object",
+      "Store analysis + check negative run in parallel: logging always happens regardless of the review sentiment",
+      "substring(0, 500) truncates long review text in Discord to avoid Discord's 1024 char field limit",
+      "requiresResponse boolean from AI flags reviews that need human follow-up — allows human-in-the-loop escalation",
+      "gpt-4o-mini at scale: 10,000 reviews/month costs ~$2 — very cost-effective for automated analysis"
+    ],
+    "weeklyTrendNote": "To generate weekly summaries: create a separate scheduled workflow that reads the Reviews sheet, filters by current weekNumber, and uses AI to summarize themes across all reviews for that week.",
+    "googleSheetColumns": {
+      "Reviews": ["reviewId", "receivedAt", "weekNumber", "productName", "customerName", "starRating", "overallSentiment", "themeQuality", "themeShipping", "themeValue", "themeCustomerService", "keyPhrases", "mainComplaint", "mainPraise", "requiresResponse", "actionableInsight", "reviewText"]
+    },
+    "testPayloads": [
+      {
+        "scenario": "Negative review",
+        "reviewId": "REV-001",
+        "reviewText": "Terrible product. It broke after just 2 days of use. The quality is cheap and I'm very disappointed. Shipping took 2 weeks which is also unacceptable.",
+        "starRating": 1,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Disappointed Dave"
+      },
+      {
+        "scenario": "Positive review",
+        "reviewId": "REV-002",
+        "reviewText": "Absolutely love this product! Arrived in 2 days with great packaging. Sound quality is incredible for the price. Customer service was helpful when I had a setup question.",
+        "starRating": 5,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Happy Hannah"
+      }
+    ]
+  }
+}

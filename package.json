@@ -1,0 +1,12 @@
+{
+  "name": "ecommerce-n8n-automations",
+  "version": "1.0.0",
+  "description": "Local n8n instance with e-commerce automation workflows",
+  "scripts": {
+    "start": "node_modules/.bin/n8n start",
+    "start:tunnel": "node_modules/.bin/n8n start --tunnel"
+  },
+  "dependencies": {
+    "n8n": "latest"
+  }
+}

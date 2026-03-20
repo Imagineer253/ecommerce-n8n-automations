@@ -1,0 +1,28 @@
+{
+  "customerName": "Sarah Johnson",
+  "customerEmail": "sarah.johnson@example.com",
+  "orderId": "ORD-2024-1847",
+  "orderTotal": 127.50,
+  "shippingAddress": {
+    "street": "123 Main Street",
+    "city": "Austin",
+    "state": "TX",
+    "zip": "78701"
+  },
+  "items": [
+    {
+      "name": "Wireless Headphones Pro",
+      "sku": "WHP-001",
+      "qty": 1,
+      "price": 89.99
+    },
+    {
+      "name": "USB-C Charging Cable 2m",
+      "sku": "UCC-2M",
+      "qty": 2,
+      "price": 18.75
+    }
+  ],
+  "paymentMethod": "Credit Card",
+  "orderStatus": "confirmed"
+}

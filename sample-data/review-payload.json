@@ -1,0 +1,45 @@
+{
+  "_comment": "Test these review scenarios by sending each as a POST to /webhook/new-review",
+  "scenarios": [
+    {
+      "name": "1-star negative review",
+      "payload": {
+        "reviewId": "REV-001",
+        "reviewText": "Completely disappointed. The product broke after just 2 days of light use. The build quality is terrible and it feels cheap. Shipping took 3 weeks when it said 5-7 days. I contacted customer service twice and got no response. Definitely not worth the money and I will not be ordering again.",
+        "starRating": 1,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Disappointed Dave"
+      }
+    },
+    {
+      "name": "2-star shipping complaint",
+      "payload": {
+        "reviewId": "REV-002",
+        "reviewText": "The product itself is okay, but the shipping was a disaster. Package arrived damaged and took 2 weeks longer than expected. The headphones work fine but I'm not sure I'd order from here again given the delivery experience.",
+        "starRating": 2,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Frustrated Fred"
+      }
+    },
+    {
+      "name": "5-star glowing review",
+      "payload": {
+        "reviewId": "REV-003",
+        "reviewText": "Absolutely love these headphones! The sound quality is incredible for the price point. They arrived in just 2 days with beautiful packaging. Battery lasts all day as advertised. When I had a small setup question, customer service responded within an hour and were super helpful. Highly recommend to anyone looking for quality audio without breaking the bank!",
+        "starRating": 5,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Happy Hannah"
+      }
+    },
+    {
+      "name": "4-star mixed review",
+      "payload": {
+        "reviewId": "REV-004",
+        "reviewText": "Great product overall — sound quality is excellent and the price is fair. Shipping was quick. The only downside is the ear cushions feel a bit stiff at first, but they soften up after a few days. Would definitely buy again.",
+        "starRating": 4,
+        "productName": "Wireless Headphones Pro",
+        "customerName": "Practical Paul"
+      }
+    }
+  ]
+}
